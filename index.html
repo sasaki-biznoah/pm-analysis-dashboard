@@ -1,0 +1,1246 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>P-MOTIVATION 営業分析ダッシュボード</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#0f172a;--bg2:#1e293b;--bg3:#334155;--text:#e2e8f0;--text2:#94a3b8;--green:#10b981;--red:#ef4444;--amber:#f59e0b;--blue:#3b82f6;--purple:#8b5cf6;--cyan:#06b6d4;--sidebar:220px}
+body{font-family:'Segoe UI','Hiragino Sans',sans-serif;background:var(--bg);color:var(--text);display:flex;height:100vh;overflow:hidden;font-size:14px}
+#sidebar{width:var(--sidebar);min-width:var(--sidebar);background:var(--bg2);border-right:1px solid var(--bg3);display:flex;flex-direction:column;overflow-y:auto}
+#sidebar h1{font-size:15px;padding:16px;border-bottom:1px solid var(--bg3);line-height:1.4}
+#sidebar h1 span{font-size:11px;color:var(--text2);display:block;margin-top:4px}
+.nav-item{padding:10px 16px;cursor:pointer;border-left:3px solid transparent;font-size:13px;transition:.15s;display:flex;align-items:center;gap:8px}
+.nav-item:hover{background:var(--bg3)}
+.nav-item.active{background:rgba(59,130,246,.15);border-left-color:var(--blue);color:var(--blue)}
+.nav-item .badge{margin-left:auto;background:var(--red);color:#fff;border-radius:10px;padding:1px 7px;font-size:11px}
+#main{flex:1;overflow-y:auto;padding:24px}
+.upload-area{border:2px dashed var(--bg3);border-radius:12px;padding:48px;text-align:center;cursor:pointer;transition:.2s;margin-bottom:24px}
+.upload-area:hover,.upload-area.dragover{border-color:var(--blue);background:rgba(59,130,246,.05)}
+.upload-area h2{margin-bottom:8px;font-size:18px}
+.upload-area p{color:var(--text2);font-size:13px}
+.toolbar{display:flex;gap:8px;margin-bottom:24px;flex-wrap:wrap;align-items:center}
+.btn{padding:8px 16px;border:1px solid var(--bg3);background:var(--bg2);color:var(--text);border-radius:6px;cursor:pointer;font-size:13px;transition:.15s;display:inline-flex;align-items:center;gap:6px}
+.btn:hover{background:var(--bg3)}
+.btn-primary{background:var(--blue);border-color:var(--blue)}
+.btn-primary:hover{background:#2563eb}
+.section{display:none}
+.section.active{display:block}
+.card{background:var(--bg2);border:1px solid var(--bg3);border-radius:10px;padding:20px;margin-bottom:16px}
+.card h3{font-size:15px;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.card-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:16px}
+.kpi-card{background:var(--bg2);border:1px solid var(--bg3);border-radius:10px;padding:16px;text-align:center}
+.kpi-card .value{font-size:28px;font-weight:700;margin:4px 0}
+.kpi-card .label{font-size:12px;color:var(--text2)}
+.kpi-card .sub{font-size:11px;margin-top:4px}
+.kpi-card.danger .value{color:var(--red)}
+.kpi-card.success .value{color:var(--green)}
+.kpi-card.warning .value{color:var(--amber)}
+.kpi-card.info .value{color:var(--blue)}
+.chart-container{position:relative;height:320px;margin:12px 0}
+.chart-container.small{height:220px}
+.chart-container.tall{height:420px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{padding:8px 10px;text-align:left;border-bottom:1px solid var(--bg3)}
+th{background:var(--bg);color:var(--text2);font-weight:600;position:sticky;top:0;font-size:12px}
+tr:hover{background:rgba(255,255,255,.03)}
+.risk-high{color:var(--red)}
+.risk-mid{color:var(--amber)}
+.risk-low{color:var(--green)}
+.tag{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600}
+.tag-red{background:rgba(239,68,68,.15);color:var(--red)}
+.tag-green{background:rgba(16,185,129,.15);color:var(--green)}
+.tag-amber{background:rgba(245,158,11,.15);color:var(--amber)}
+.tag-blue{background:rgba(59,130,246,.15);color:var(--blue)}
+.tag-purple{background:rgba(139,92,246,.15);color:var(--purple)}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.scroll-table{max-height:400px;overflow-y:auto}
+.progress-bar{height:6px;background:var(--bg3);border-radius:3px;overflow:hidden;margin-top:6px}
+.progress-bar .fill{height:100%;border-radius:3px;transition:.3s}
+.detail-modal{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.6);z-index:100;display:none;justify-content:center;align-items:center}
+.detail-modal.show{display:flex}
+.detail-modal .modal-content{background:var(--bg2);border:1px solid var(--bg3);border-radius:12px;padding:24px;max-width:800px;width:90%;max-height:80vh;overflow-y:auto}
+.detail-modal .close-btn{float:right;cursor:pointer;font-size:20px;color:var(--text2)}
+.radar-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px}
+#file-input{display:none}
+.empty-state{text-align:center;padding:80px 20px;color:var(--text2)}
+.empty-state h2{margin-bottom:12px;font-size:20px;color:var(--text)}
+.overview-header{background:linear-gradient(135deg,#1e293b 0%,#0f172a 100%);border:1px solid var(--bg3);border-radius:12px;padding:24px;margin-bottom:20px}
+.overview-header h2{font-size:20px;margin-bottom:8px}
+.overview-header p{color:var(--text2);font-size:13px;line-height:1.6}
+.issue-list{display:flex;flex-direction:column;gap:10px}
+.issue-item{background:var(--bg);border-radius:8px;padding:14px 16px;border-left:4px solid var(--red);display:flex;align-items:flex-start;gap:12px}
+.issue-item.warning{border-left-color:var(--amber)}
+.issue-item .issue-severity{min-width:32px;height:32px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0}
+.issue-item .issue-severity.s5{background:rgba(239,68,68,.2);color:var(--red)}
+.issue-item .issue-severity.s4{background:rgba(245,158,11,.2);color:var(--amber)}
+.issue-item .issue-severity.s3{background:rgba(59,130,246,.2);color:var(--blue)}
+.issue-item .issue-body{flex:1;min-width:0}
+.issue-item .issue-title{font-weight:600;font-size:14px;margin-bottom:4px}
+.issue-item .issue-desc{font-size:12px;color:var(--text2);line-height:1.5}
+.proposal-card{background:var(--bg);border-radius:8px;padding:16px;border:1px solid var(--bg3)}
+.proposal-card .proposal-header{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.proposal-card .proposal-priority{padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700}
+.proposal-card .proposal-title{font-weight:600;font-size:14px}
+.proposal-card .proposal-detail{font-size:12px;color:var(--text2);line-height:1.5;margin-bottom:8px}
+.proposal-card .proposal-meta{display:flex;gap:16px;font-size:11px}
+.proposal-card .proposal-meta span{display:flex;align-items:center;gap:4px}
+.action-table{width:100%;font-size:12px}
+.action-table th{font-size:11px;padding:8px;background:var(--bg);color:var(--text2)}
+.action-table td{padding:8px;vertical-align:top;line-height:1.5}
+.action-table tr:hover{background:rgba(255,255,255,.03)}
+.three-col{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.health-score{font-size:36px;font-weight:800;letter-spacing:-1px}
+.health-bar{display:flex;gap:2px;margin-top:8px}
+.health-bar .seg{height:8px;border-radius:4px;flex:1}
+#menu-toggle{display:none;position:fixed;top:12px;left:12px;z-index:200;background:var(--bg2);border:1px solid var(--bg3);color:var(--text);border-radius:8px;padding:8px 12px;font-size:18px;cursor:pointer}
+#menu-overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:98}
+@media(max-width:768px){
+  #menu-toggle{display:block}
+  #sidebar{position:fixed;top:0;left:-260px;width:250px;min-width:250px;height:100vh;z-index:99;transition:left .25s}
+  #sidebar.open{left:0}
+  #menu-overlay.open{display:block}
+  #main{padding:16px;padding-top:56px}
+  .toolbar{flex-direction:column;gap:6px}
+  .toolbar .btn{width:100%;justify-content:center}
+  .toolbar span{margin-left:0!important;text-align:center}
+  .card-grid{grid-template-columns:1fr}
+  .two-col{grid-template-columns:1fr}
+  .three-col{grid-template-columns:1fr}
+  .radar-grid{grid-template-columns:1fr}
+  .kpi-card .value{font-size:22px}
+  .overview-header h2{font-size:16px}
+  .overview-header p{font-size:12px}
+  .issue-item{flex-direction:column;gap:6px}
+  .proposal-card .proposal-header{flex-wrap:wrap}
+  table{font-size:11px}
+  th,td{padding:6px 4px}
+  .scroll-table{overflow-x:auto}
+  body{overflow:auto;height:auto;display:block}
+  #main{overflow:visible;height:auto}
+}
+</style>
+</head>
+<body>
+<button id="menu-toggle" onclick="document.getElementById('sidebar').classList.toggle('open');document.getElementById('menu-overlay').classList.toggle('open')">☰</button>
+<div id="menu-overlay" onclick="document.getElementById('sidebar').classList.remove('open');this.classList.remove('open')"></div>
+<div id="sidebar">
+<h1>P-MOTIVATION<span>営業分析ダッシュボード</span></h1>
+<div class="nav-item active" data-section="overview">総評・改善アクション</div>
+<div class="nav-item" data-section="summary">1. エグゼクティブサマリー</div>
+<div class="nav-item" data-section="loss">2. 失注・解約要因</div>
+<div class="nav-item" data-section="approach">3. 営業アプローチ</div>
+<div class="nav-item" data-section="salesperson">4. 担当者パフォーマンス</div>
+<div class="nav-item" data-section="probability">5. 確度トラッキング</div>
+<div class="nav-item" data-section="pricing">6. 価格・見積分析</div>
+<div class="nav-item" data-section="timeline">7. タイムライン</div>
+<div class="nav-item" data-section="regional">8. 地域分析</div>
+<div class="nav-item" data-section="risk">9. リスク検知</div>
+<div class="nav-item" data-section="contract">10. 成約法人</div>
+<div class="nav-item" data-section="competitor">11. 競合分析</div>
+</div>
+<div id="main">
+<div class="toolbar" id="toolbar" style="display:none">
+<button class="btn btn-primary" onclick="document.getElementById('file-input').click()">JSONアップロード</button>
+<button class="btn" onclick="exportHTML()">HTMLエクスポート</button>
+<button class="btn" onclick="exportJSON()">JSON分析結果</button>
+<span style="margin-left:auto;font-size:12px;color:var(--text2)" id="data-info"></span>
+</div>
+<input type="file" id="file-input" accept=".json">
+<div id="upload-screen">
+<div class="upload-area" id="drop-zone">
+<h2>Redmine JSONデータをアップロード</h2>
+<p>ファイルをドラッグ&ドロップ、またはクリックして選択</p>
+<p style="margin-top:8px;font-size:12px">対応形式: redmine_comments_export.json</p>
+</div>
+</div>
+<div id="dashboard" style="display:none">
+<!-- Section 0: Overview / 総評 -->
+<div class="section active" id="sec-overview"></div>
+<!-- Section 1: Executive Summary -->
+<div class="section" id="sec-summary"></div>
+<!-- Section 2: Loss/Cancellation Analysis -->
+<div class="section" id="sec-loss"></div>
+<!-- Section 3: Sales Approach -->
+<div class="section" id="sec-approach"></div>
+<!-- Section 4: Salesperson Performance -->
+<div class="section" id="sec-salesperson"></div>
+<!-- Section 5: Probability Tracking -->
+<div class="section" id="sec-probability"></div>
+<!-- Section 6: Pricing -->
+<div class="section" id="sec-pricing"></div>
+<!-- Section 7: Timeline -->
+<div class="section" id="sec-timeline"></div>
+<!-- Section 8: Regional -->
+<div class="section" id="sec-regional"></div>
+<!-- Section 9: Risk Detection -->
+<div class="section" id="sec-risk"></div>
+<!-- Section 10: Contract Monitoring -->
+<div class="section" id="sec-contract"></div>
+<!-- Section 11: Competitor Analysis -->
+<div class="section" id="sec-competitor"></div>
+</div>
+</div>
+<div class="detail-modal" id="modal"><div class="modal-content"><span class="close-btn" onclick="closeModal()">&times;</span><div id="modal-body"></div></div></div>
+<script>
+// ============================================================
+// GLOBAL STATE
+// ============================================================
+let rawData = null;
+let analyzed = null;
+let charts = {};
+
+// ============================================================
+// NAVIGATION
+// ============================================================
+document.querySelectorAll('.nav-item').forEach(el => {
+  el.addEventListener('click', () => {
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    el.classList.add('active');
+    document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+    const sec = document.getElementById('sec-' + el.dataset.section);
+    if (sec) sec.classList.add('active');
+    // Close mobile sidebar
+    document.getElementById('sidebar').classList.remove('open');
+    document.getElementById('menu-overlay').classList.remove('open');
+  });
+});
+
+// ============================================================
+// FILE UPLOAD
+// ============================================================
+const dropZone = document.getElementById('drop-zone');
+const fileInput = document.getElementById('file-input');
+dropZone.addEventListener('click', () => fileInput.click());
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('dragover'); handleFile(e.dataTransfer.files[0]); });
+fileInput.addEventListener('change', e => { if (e.target.files[0]) handleFile(e.target.files[0]); });
+
+function handleFile(file) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      rawData = JSON.parse(e.target.result);
+      analyzed = analyzeData(rawData);
+      document.getElementById('upload-screen').style.display = 'none';
+      document.getElementById('dashboard').style.display = 'block';
+      document.getElementById('toolbar').style.display = 'flex';
+      document.getElementById('data-info').textContent =
+        `${rawData.summary.total_issues}件 / ${rawData.summary.total_comments}コメント / ${rawData.exported_at?.slice(0,10)||''}`;
+      renderAll();
+    } catch(err) { alert('JSONの読み込みに失敗しました: ' + err.message); }
+  };
+  reader.readAsText(file);
+}
+
+// ============================================================
+// DATA ANALYSIS ENGINE
+// ============================================================
+const RE = {
+  prob: /(?:確度|角度)[はをがに]?\s*(?:変わらず|そのまま|まま)?\s*(\d+)\s*[%％]/g,
+  probSet: /(?:確度|角度)[はをがに]?\s*(\d+)\s*[%％]\s*[⇒→=>]+\s*(\d+)\s*[%％]/g,
+  price_unit: /@\s*([\d,]+)/g,
+  price_total: /計\s*([\d,]+)/g,
+  initial: /イニシャル[^0-9]*([\d,]+)/g,
+  running: /ランニング[^0-9]*([\d,]+)/g,
+  stores: /(\d+)\s*店舗/g,
+  roles: /(社長|副社長|代表取締役|取締役|常務|専務|部長|次長|課長|係長|室長|主任|主査)/g,
+  meetZoom: /ZOOM|zoom|ズーム|オンライン/i,
+  meetFace: /にて(?!.*電話)|本社にて|事務所にて|支社にて|訪問|対面/,
+  meetPhone: /電話にて|電話にて|電話で|TELにて/i,
+  meetMail: /メールにて|LINEにて|メール|LINE/i,
+  referral: /紹介|ご紹介|アテンド/,
+  timing: /年度末|予算|来年|来期|決算|タイミング|時期/,
+  ceoBlock: /(社長|会長).{0,30}(難し|懸念|渋|反対|アナログ|信用|まだ|あんな感じ)/,
+  costBlock: /(ランニング|月額|コスト|費用).{0,30}(下り|難し|高|かかる|削減)/,
+  existing: /導入済|既に.*使|SmartHR|スマートHR|カオナビ|Kaonavi/i,
+  hrResist: /居場所|不要|自分たち|仕事.*なくな/,
+  security: /個人情報|流出|セキュリティ/,
+  competitors: /SmartHR|スマートHR|カオナビ|Kaonavi|グローリー|Glory|schoo|PCA|タレントパレット|コボット|ひとまわり|モチベーションクラウド/gi,
+  cancel: /解約|閉店|減少|撤退|終了|解除/,
+  proposal: /提案|事例|サンプル|資料.*送/g,
+  listening: /との事|とのこと|と言われ|とおっしゃ|との連絡/g,
+  nextAction: /次回|今後|来週|来月|連絡し|確認し|進めて|フォロー/g,
+  features: /動画|ドリル|スキル|エニアグラム|評価|人事台帳|講習|360度|チームボード|M評価/g,
+  locations: /(福岡|東京|大阪|名古屋|沖縄|京都|神戸|北海道|札幌|仙台|横浜|赤坂|関内|天神|梅田|新宿|渋谷|池袋|愛知|三重|岐阜|静岡|兵庫|広島|熊本|長崎|鹿児島|宮崎|長野|新潟|石川|富山|群馬|栃木|茨城|千葉|埼玉|神奈川|奈良|滋賀|和歌山|香川|徳島|愛媛|高知|岡山|山口|佐賀|大分|山形|秋田|青森|岩手|宮城|福島県|山梨)/g,
+};
+
+function analyzeData(raw) {
+  const result = { eigyou: [], seiyaku: [], gyoumu: [], salespersons: {}, summary: {} };
+  // Process each project
+  for (const [projKey, issues] of Object.entries(raw.projects)) {
+    const type = projKey.includes('eigyou') ? 'eigyou' : projKey.includes('seiyaku') ? 'seiyaku' : 'gyoumu';
+    for (const issue of issues) {
+      const d = processIssue(issue, type);
+      result[type].push(d);
+      // Aggregate salesperson data
+      for (const c of d.comments) {
+        if (!result.salespersons[c.user]) result.salespersons[c.user] = { name: c.user, eigyou: [], seiyaku: [], gyoumu: [], comments: [] };
+        result.salespersons[c.user][type].push(d.id);
+        result.salespersons[c.user].comments.push(c);
+      }
+    }
+  }
+  // Compute salesperson scores
+  for (const sp of Object.values(result.salespersons)) computeSalespersonScores(sp);
+  // Compute summary
+  result.summary = computeSummary(result);
+  return result;
+}
+
+function processIssue(issue, type) {
+  const d = {
+    id: issue.issue_id, subject: issue.subject, type,
+    company: extractCompany(issue.subject),
+    comments: (issue.comments || []).map(c => processComment(c)).sort((a,b) => new Date(a.date) - new Date(b.date)),
+  };
+  // Computed fields
+  d.totalComments = d.comments.length;
+  d.uniqueCommenters = [...new Set(d.comments.map(c => c.user))];
+  d.primarySalesperson = d.uniqueCommenters.length ? mode(d.comments.map(c => c.user)) : 'N/A';
+  d.firstDate = d.comments.length ? d.comments[0].date : null;
+  d.lastDate = d.comments.length ? d.comments[d.comments.length - 1].date : null;
+  d.daysSinceLastContact = d.lastDate ? Math.floor((Date.now() - new Date(d.lastDate)) / 86400000) : 9999;
+  // Probability tracking
+  d.probHistory = [];
+  for (const c of d.comments) { if (c.extracted.probabilities.length) d.probHistory.push(...c.extracted.probabilities.map(p => ({date: c.date, value: p, user: c.user}))); }
+  d.currentProb = d.probHistory.length ? d.probHistory[d.probHistory.length - 1].value : null;
+  d.probTrend = d.probHistory.length >= 2 ? (d.probHistory[d.probHistory.length-1].value - d.probHistory[d.probHistory.length-2].value) : 0;
+  // Max gap between comments
+  d.maxGapDays = 0;
+  for (let i = 1; i < d.comments.length; i++) {
+    const gap = (new Date(d.comments[i].date) - new Date(d.comments[i-1].date)) / 86400000;
+    if (gap > d.maxGapDays) d.maxGapDays = Math.round(gap);
+  }
+  // Record quality metrics
+  d.avgCommentLength = d.comments.length ? Math.round(d.comments.reduce((s,c) => s + c.text.length, 0) / d.comments.length) : 0;
+  d.proposalCount = d.comments.reduce((s,c) => s + c.extracted.proposalCount, 0);
+  d.listeningCount = d.comments.reduce((s,c) => s + c.extracted.listeningCount, 0);
+  d.nextActionCount = d.comments.reduce((s,c) => s + c.extracted.nextActionCount, 0);
+  d.featuresUsed = [...new Set(d.comments.flatMap(c => c.extracted.features))];
+  d.hasCustomRequest = d.comments.some(c => /カスタム|カスタマイズ|独自|自社.*動画|オリジナル/.test(c.text));
+  // Competitor mentions (must be before blockers/risk)
+  d.competitors = [...new Set(d.comments.flatMap(c => c.extracted.competitors))];
+  // Store count
+  const allStores = d.comments.flatMap(c => c.extracted.stores);
+  d.storeCount = allStores.length ? allStores[allStores.length - 1] : null;
+  // Pricing
+  d.pricing = extractPricingFromDeal(d);
+  // Meeting types
+  d.meetingTypes = { zoom: 0, face: 0, phone: 0, mail: 0 };
+  for (const c of d.comments) { for (const mt of Object.keys(c.extracted.meetingTypes)) if (c.extracted.meetingTypes[mt]) d.meetingTypes[mt]++; }
+  // Contact roles
+  d.contactRoles = [...new Set(d.comments.flatMap(c => c.extracted.roles))];
+  // Locations
+  d.locations = [...new Set(d.comments.flatMap(c => c.extracted.locations))];
+  // Blocker analysis (after competitors, stores, etc.)
+  d.blockers = detectBlockers(d);
+  // Risk score
+  d.riskScore = computeRiskScore(d);
+  // Status inference
+  d.status = inferStatus(d);
+  return d;
+}
+
+function normalizeCompetitor(c) {
+  const l = c.toLowerCase();
+  if (/smarthr|スマートhr/.test(l)) return 'SmartHR';
+  if (/kaonavi|カオナビ/.test(l)) return 'カオナビ';
+  if (/グローリー|glory/.test(l)) return 'グローリー';
+  if (/タレントパレット|トパレット/.test(l)) return 'タレントパレット';
+  if (/schoo/.test(l)) return 'Schoo';
+  if (/pca/.test(l)) return 'PCA';
+  if (/コボット/.test(l)) return 'コボット';
+  if (/ひとまわり/.test(l)) return 'ひとまわり';
+  if (/モチベーションクラウド/.test(l)) return 'モチベーションクラウド';
+  return c;
+}
+
+function processComment(c) {
+  const text = c.notes || '';
+  const probs = [];
+  // Extract probability changes
+  let m;
+  const setPat = /(?:確度|角度)[はをがに]?\s*(\d+)\s*[%％]\s*[⇒→=>＝]+\s*(\d+)\s*[%％]/g;
+  while ((m = setPat.exec(text)) !== null) probs.push(parseInt(m[2]));
+  if (!probs.length) {
+    const simplePat = /(?:確度|角度)[はをがに]?\s*(?:変わらず|そのまま|まま|は)?\s*(\d+)\s*[%％]/g;
+    while ((m = simplePat.exec(text)) !== null) probs.push(parseInt(m[1]));
+  }
+  return {
+    id: c.journal_id, user: c.user, date: c.created_on, text,
+    extracted: {
+      probabilities: probs,
+      roles: (text.match(RE.roles) || []),
+      meetingTypes: { zoom: RE.meetZoom.test(text), face: RE.meetFace.test(text), phone: RE.meetPhone.test(text), mail: RE.meetMail.test(text) },
+      isReferral: RE.referral.test(text),
+      competitors: [...new Set((text.match(RE.competitors) || []).map(normalizeCompetitor))],
+      stores: (text.match(/(\d+)\s*店舗/g) || []).map(s => parseInt(s)),
+      locations: (text.match(RE.locations) || []),
+      features: (text.match(RE.features) || []),
+      proposalCount: (text.match(RE.proposal) || []).length,
+      listeningCount: (text.match(RE.listening) || []).length,
+      nextActionCount: (text.match(RE.nextAction) || []).length,
+      hasCancel: /解約(?!.*いつでも|.*できる|.*可能)/.test(text) && /解約(?:する|した|され|になり|とな|の連絡|の申|手続|申出|希望|決定|済|完了|日|月末)/.test(text),
+      hasStoreClose: /閉店|店舗.*減|減少/.test(text),
+    }
+  };
+}
+
+function detectBlockers(d) {
+  const b = [];
+  const allText = d.comments.map(c => c.text).join(' ');
+  if (RE.timing.test(allText)) b.push('timing');
+  if (RE.ceoBlock.test(allText)) b.push('ceo_block');
+  if (RE.costBlock.test(allText)) b.push('cost');
+  if (RE.existing.test(allText)) b.push('existing_system');
+  if (RE.hrResist.test(allText)) b.push('hr_resist');
+  if (RE.security.test(allText)) b.push('security');
+  if (d.competitors.length) b.push('competitor');
+  if (d.totalComments === 0) b.push('no_followup');
+  return b;
+}
+
+function computeRiskScore(d) {
+  let score = 0;
+  if (d.type === 'eigyou') {
+    if (d.daysSinceLastContact > 90) score += 30;
+    if (d.probTrend < 0) score += 20;
+    if (d.comments.some(c => /難し|見送/.test(c.text))) score += 15;
+    if (d.blockers.includes('ceo_block')) score += 15;
+    if (d.totalComments === 0) score += 40;
+    if (d.competitors.length) score += 10;
+  } else if (d.type === 'seiyaku') {
+    if (d.daysSinceLastContact > 180) score += 35;
+    if (d.totalComments < 14) score += 25;
+    if (d.uniqueCommenters.length <= 1) score += 20;
+    if (d.comments.some(c => c.extracted.hasCancel)) score += 30;
+    if (d.competitors.length) score += 25;
+    if (d.comments.some(c => /閉店|減少|店舗.*減/.test(c.text))) score += 15;
+    if (d.avgCommentLength < 200) score += 10;
+    if (!d.featuresUsed.includes('評価')) score += 15;
+    if (!d.hasCustomRequest) score += 10;
+  }
+  return score;
+}
+
+function inferStatus(d) {
+  if (d.type === 'seiyaku') {
+    // Check if last few comments contain actual cancellation language
+    const lastComments = d.comments.slice(-3);
+    const lastTexts = lastComments.map(c => c.text).join(' ');
+    const hasCancelSignal = /解約(?:する|した|され|になり|とな|の連絡|の申|手続|申出|希望|決定|済|完了|日|月末)|契約.*終了|利用.*停止|サービス.*終了/.test(lastTexts);
+    // Also check for competitor switch in recent comments
+    const recentSwitch = /(?:カオナビ|SmartHR|スマートHR|グローリー).*(?:導入|切替|移行|乗換)|(?:導入|切替|移行|乗換).*(?:カオナビ|SmartHR|スマートHR|グローリー)/.test(lastTexts);
+    if (hasCancelSignal || recentSwitch) return 'cancelled';
+    if (d.daysSinceLastContact > 365) return 'dormant';
+    return 'active';
+  }
+  if (d.totalComments === 0) return 'abandoned';
+  if (d.currentProb !== null && d.currentProb <= 10) return 'lost';
+  if (d.currentProb !== null && d.currentProb >= 70) return 'hot';
+  if (d.daysSinceLastContact > 180) return 'stalled';
+  return 'active';
+}
+
+function extractCompany(subject) {
+  return subject.replace(/【[^】]*】/g, '').replace(/^\d+_/, '').replace(/\s*様\s*$/, '').replace(/^\s*/, '').replace(/\s*$/, '');
+}
+
+function extractPricingFromDeal(d) {
+  const p = { initial: [], running: [], unitPrice: [] };
+  for (const c of d.comments) {
+    let m;
+    const iRe = /イニシャル[^0-9@]*([@＠]\s*[\d,]+|[\d,]+)/g;
+    while ((m = iRe.exec(c.text)) !== null) p.initial.push(parseInt(m[1].replace(/[@＠\s,]/g,'')));
+    const rRe = /(?:評価有|評価無|ランニング)[^0-9@]*([@＠]\s*[\d,]+|[\d,]+)/g;
+    while ((m = rRe.exec(c.text)) !== null) p.running.push(parseInt(m[1].replace(/[@＠\s,]/g,'')));
+    const uRe = /@\s*([\d,]+)/g;
+    while ((m = uRe.exec(c.text)) !== null) p.unitPrice.push(parseInt(m[1].replace(/,/g,'')));
+  }
+  return p;
+}
+
+function computeSalespersonScores(sp) {
+  const comments = sp.comments;
+  if (!comments.length) { sp.scores = { diligence:0, persistence:0, proactiveness:0, empathy:0, planning:0, riskAwareness:0 }; return; }
+  const avgLen = comments.reduce((s,c) => s + c.text.length, 0) / comments.length;
+  const sorted = [...comments].sort((a,b) => new Date(a.date) - new Date(b.date));
+  let avgGap = 30;
+  if (sorted.length > 1) {
+    let totalGap = 0;
+    for (let i = 1; i < sorted.length; i++) totalGap += (new Date(sorted[i].date) - new Date(sorted[i-1].date)) / 86400000;
+    avgGap = totalGap / (sorted.length - 1);
+  }
+  sp.scores = {
+    diligence: Math.min(100, Math.round(avgLen / 8)),
+    persistence: Math.min(100, Math.round(Math.max(0, 100 - avgGap * 1.5))),
+    proactiveness: Math.min(100, Math.round(comments.reduce((s,c) => s + c.extracted.proposalCount, 0) / comments.length * 50)),
+    empathy: Math.min(100, Math.round(comments.reduce((s,c) => s + c.extracted.listeningCount, 0) / comments.length * 30)),
+    planning: Math.min(100, Math.round(comments.reduce((s,c) => s + c.extracted.nextActionCount, 0) / comments.length * 40)),
+    riskAwareness: Math.min(100, Math.round(comments.filter(c => c.extracted.probabilities.length > 0).length / comments.length * 100)),
+  };
+}
+
+function computeSummary(result) {
+  const e = result.eigyou, s = result.seiyaku;
+  const totalEigyou = e.length;
+  const activeEigyou = e.filter(d => d.totalComments > 0).length;
+  const abandonedEigyou = e.filter(d => d.totalComments === 0).length;
+  const hotDeals = e.filter(d => d.currentProb !== null && d.currentProb >= 50).length;
+  const totalSeiyaku = s.length;
+  const cancelledSeiyaku = s.filter(d => d.status === 'cancelled').length;
+  const activeSeiyaku = s.filter(d => d.status === 'active').length;
+  const dormantSeiyaku = s.filter(d => d.status === 'dormant').length;
+  const avgProb = e.filter(d => d.currentProb !== null);
+  const avgProbVal = avgProb.length ? Math.round(avgProb.reduce((s,d) => s + d.currentProb, 0) / avgProb.length) : 0;
+  return {
+    totalEigyou, activeEigyou, abandonedEigyou, hotDeals,
+    totalSeiyaku, cancelledSeiyaku, activeSeiyaku, dormantSeiyaku,
+    avgProbability: avgProbVal,
+    cancelRate: totalSeiyaku ? Math.round(cancelledSeiyaku / totalSeiyaku * 100) : 0,
+    abandonRate: totalEigyou ? Math.round(abandonedEigyou / totalEigyou * 100) : 0,
+  };
+}
+
+function mode(arr) { const counts = {}; arr.forEach(v => counts[v] = (counts[v]||0)+1); return Object.entries(counts).sort((a,b)=>b[1]-a[1])[0]?.[0]; }
+
+// ============================================================
+// RENDER ALL SECTIONS
+// ============================================================
+function renderAll() {
+  destroyAllCharts();
+  renderOverview();
+  renderSummary();
+  renderLoss();
+  renderApproach();
+  renderSalesperson();
+  renderProbability();
+  renderPricing();
+  renderTimeline();
+  renderRegional();
+  renderRisk();
+  renderContract();
+  renderCompetitor();
+}
+
+function destroyAllCharts() { for (const c of Object.values(charts)) { try { c.destroy(); } catch(e){} } charts = {}; }
+
+function makeChart(canvasId, config) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return null;
+  if (charts[canvasId]) { try { charts[canvasId].destroy(); } catch(e){} }
+  config.options = config.options || {};
+  config.options.responsive = true;
+  config.options.maintainAspectRatio = false;
+  if (!config.options.plugins) config.options.plugins = {};
+  config.options.plugins.legend = config.options.plugins.legend || { labels: { color: '#94a3b8', font: { size: 11 } } };
+  if (config.options.scales) {
+    for (const axis of Object.values(config.options.scales)) {
+      axis.ticks = axis.ticks || {};
+      axis.ticks.color = '#94a3b8';
+      axis.grid = axis.grid || {};
+      axis.grid.color = 'rgba(51,65,85,0.5)';
+    }
+  }
+  charts[canvasId] = new Chart(canvas, config);
+  return charts[canvasId];
+}
+
+// ============================================================
+// SECTION 0: OVERVIEW / 総評
+// ============================================================
+function computeOverview() {
+  const s = analyzed.summary;
+  const allDeals = [...analyzed.eigyou, ...analyzed.seiyaku];
+  const e = analyzed.eigyou, sk = analyzed.seiyaku;
+  // Health score: 0-100 (weighted composite)
+  const abandonPenalty = Math.min(40, s.abandonRate);
+  const cancelPenalty = Math.min(30, s.cancelRate);
+  const stalledPct = e.filter(d => d.daysSinceLastContact > 180 && d.totalComments > 0).length / Math.max(1, e.filter(d => d.totalComments > 0).length) * 100;
+  const stalledPenalty = Math.min(20, stalledPct * 0.25);
+  const singleDepPct = sk.filter(d => d.status === 'active' && d.uniqueCommenters.length <= 1).length / Math.max(1, sk.filter(d => d.status === 'active').length) * 100;
+  const depPenalty = Math.min(10, singleDepPct * 0.15);
+  const healthScore = Math.max(0, Math.round(100 - abandonPenalty - cancelPenalty - stalledPenalty - depPenalty));
+
+  // Critical issues (auto-generated from data)
+  const issues = [];
+  // 1. Lead abandonment
+  if (s.abandonRate > 20) issues.push({ severity: 5, title: `リード放棄率 ${s.abandonRate}%（${s.abandonedEigyou}/${s.totalEigyou}件）`, desc: `新規営業案件の${s.abandonRate}%がフォローアップなし。コメント0件のまま放置されており、リード獲得コストが無駄になっている。`, category: 'sales' });
+  // 2. Cancel rate
+  if (s.cancelRate > 15) issues.push({ severity: 5, title: `解約率 ${s.cancelRate}%（${s.cancelledSeiyaku}/${s.totalSeiyaku}社）`, desc: `成約法人の解約率がSaaS業界標準（5-10%）を大きく上回る。直近の解約はSmartHR/カオナビへの流出と担当者退職が主因。`, category: 'retention' });
+  // 3. Stalled leads
+  const stalledCount = e.filter(d => d.daysSinceLastContact > 180 && d.totalComments > 0).length;
+  if (stalledCount > 10) issues.push({ severity: 5, title: `停滞案件 ${stalledCount}件が6ヶ月以上放置`, desc: `接触済み案件の大半が半年以上フォローなし。平均接触間隔は約140日。関係性がリセットされるリスクが高い。`, category: 'sales' });
+  // 4. Single person dependency
+  const singleDepCount = sk.filter(d => d.status === 'active' && d.uniqueCommenters.length <= 1).length;
+  if (singleDepCount > 0) issues.push({ severity: 4, title: `担当者1名依存の法人が${singleDepCount}社`, desc: `担当者1名のみの法人は解約率が約50%。退職・異動で即解約リスクあり。3名以上のチーム管理法人はほぼ解約なし。`, category: 'retention' });
+  // 5. Competitor threat
+  const compDeals = allDeals.filter(d => d.competitors && d.competitors.length > 0);
+  const compNames = {};
+  for (const d of compDeals) for (const c of d.competitors) compNames[c] = (compNames[c]||0) + 1;
+  const topComp = Object.entries(compNames).sort((a,b)=>b[1]-a[1]).slice(0,3);
+  if (topComp.length) issues.push({ severity: 4, title: `競合脅威: ${topComp.map(c=>c[0]+'('+c[1]+'件)').join('、')}`, desc: `直近の解約・失注で競合への流出が増加。特にSmartHR/カオナビの勤怠・給与連携が差別化ポイント。`, category: 'competitor' });
+  // 6. Salesperson concentration
+  const spEntries = Object.values(analyzed.salespersons).sort((a,b)=>b.comments.length-a.comments.length);
+  if (spEntries.length >= 2) {
+    const top2pct = Math.round((spEntries[0].comments.length + spEntries[1].comments.length) / allDeals.reduce((s,d)=>s+d.totalComments,0) * 100);
+    if (top2pct > 60) issues.push({ severity: 4, title: `営業活動の${top2pct}%が上位2名に集中`, desc: `${spEntries[0].name}と${spEntries[1].name}に過度に依存。離脱時のリスクが極めて高く、営業キャパシティの上限要因。`, category: 'organization' });
+  }
+  // 7. CEO blocker
+  const ceoBlocked = e.filter(d => d.blockers && d.blockers.includes('ceo_block')).length;
+  if (ceoBlocked > 5) issues.push({ severity: 3, title: `CEO/役員ブロッカー ${ceoBlocked}件`, desc: `経営層の抵抗で停滞している案件が多数。対面でのROI提示と成功事例共有が突破のカギ。`, category: 'sales' });
+
+  issues.sort((a,b)=>b.severity-a.severity);
+
+  // Improvement proposals (synthesized from 3 dimensions)
+  const proposals = [
+    { priority: 5, title: 'リード管理SLAの導入', desc: '72時間以内初回コンタクト、確度別フォロー間隔を義務化。放棄率34%を15%以下に。', impact: '年間1,440万円の潜在売上回復', effort: '中', category: 'sales' },
+    { priority: 5, title: '解約予兆アラートの自動化', desc: '30日無接触で黄色、60日で赤色アラート。担当者1名法人・記録品質低下を週次モニタリング。', impact: '解約率22%→12%以下', effort: '中', category: 'retention' },
+    { priority: 5, title: 'マルチ担当者化（バディ制）', desc: '全法人にメイン+サブの2名体制を義務化。担当者退職=即解約パターンの防止。', impact: '担当者退職による解約を0に', effort: '低', category: 'organization' },
+    { priority: 4, title: '評価機能の早期導入パッケージ', desc: '契約6ヶ月以内に評価機能を稼働させ「剥がせないシステム」化。教育プランのみの法人の解約率40%を5%以下に。', impact: '解約防止+月額単価50%増', effort: '中', category: 'retention' },
+    { priority: 4, title: '経営層向けROIプレゼン開発', desc: 'CEO決裁NGパターンに対する3種の標準プレゼン資料を整備。成功事例+コスト削減試算+業界トレンド。', impact: '年間720-1,200万円改善', effort: '大', category: 'sales' },
+    { priority: 4, title: '紹介営業プログラムの体系化', desc: '既存36社からの紹介プログラムを制度化。インセンティブ設計と業界横繋がりを活用。', impact: '年間960万円の新規売上', effort: '小', category: 'sales' },
+    { priority: 4, title: '競合対策ポジショニングの明確化', desc: 'SmartHR/カオナビとの機能比較表整備。業界特化教育+評価の独自価値を訴求。パルスサーベイの早期開発。', impact: '競合流出を年間0社に', effort: '高', category: 'competitor' },
+    { priority: 3, title: '営業ナレッジ共有と記録品質標準化', desc: 'コメント記録テンプレート導入、月次ナレッジ共有会の実施。属人化したノウハウを組織知に。', impact: '営業キャパ1.5倍化', effort: '低', category: 'organization' },
+  ];
+
+  // Next actions (immediate, concrete)
+  const actions = [
+    { action: '放棄リード52件の棚卸し・優先順位付け', responsible: '高島・佐々木', timeline: '2週間以内', kpi: '30件以上に初回コンタクト' },
+    { action: '継続法人の解約リスクスコアカード作成', responsible: '大原・福島', timeline: '2週間以内', kpi: '全法人スコア完成、60点以下を即フォロー' },
+    { action: '担当者1名法人への2名目確保打診', responsible: '各担当営業', timeline: '1ヶ月以内', kpi: '1名法人率30%→10%以下' },
+    { action: 'SmartHR/カオナビ比較資料の作成', responsible: '高島・大原', timeline: '3月末', kpi: '全営業が比較資料を使用' },
+    { action: '停滞案件88件のステータス一括更新', responsible: '全営業', timeline: '2週間以内', kpi: '全件のステータス判定完了' },
+    { action: '経営層向けROIプレゼン資料v1作成', responsible: '大原・高島', timeline: '3週間以内', kpi: '確度50%以上の案件で経営層プレゼン3件' },
+    { action: '月次営業ナレッジ共有会を開始', responsible: '佐々木（第1回）', timeline: '4月第3週', kpi: '共有知見の新規提案活用5件/四半期' },
+    { action: '善都（休止中）へパルスサーベイ開発共有', responsible: '高島', timeline: '4月', kpi: '再契約（月額24万円回復）' },
+  ];
+
+  return { healthScore, issues, proposals, actions };
+}
+
+function renderOverview() {
+  const ov = computeOverview();
+  const s = analyzed.summary;
+  const hColor = ov.healthScore >= 60 ? 'var(--amber)' : ov.healthScore >= 40 ? 'var(--amber)' : 'var(--red)';
+  const hLabel = ov.healthScore >= 70 ? '良好' : ov.healthScore >= 50 ? '要注意' : ov.healthScore >= 30 ? '要改善' : '危険';
+  const categoryIcon = { sales: '📊', retention: '🔄', organization: '👥', competitor: '⚔️' };
+  const categoryLabel = { sales: '営業プロセス', retention: '顧客維持', organization: '組織体制', competitor: '競合対策' };
+  const priorityColor = p => p >= 5 ? 'background:rgba(239,68,68,.15);color:var(--red)' : p >= 4 ? 'background:rgba(245,158,11,.15);color:var(--amber)' : 'background:rgba(59,130,246,.15);color:var(--blue)';
+  const effortLabel = e => e === '小' ? '🟢 '+e : e === '中' ? '🟡 '+e : '🔴 '+e;
+
+  document.getElementById('sec-overview').innerHTML = `
+    <div class="overview-header">
+      <h2>総評 ― P-MOTIVATION 営業・顧客管理の現状診断と改善アクション</h2>
+      <p>Redmineデータ（${s.totalEigyou}件の営業案件、${s.totalSeiyaku}社の成約法人、927件のコメント）を多角的に分析し、3つの視点（営業プロセス/顧客維持/組織体制）から客観的に課題を抽出。データに基づく改善提案と具体的アクションを提示。</p>
+    </div>
+
+    <div class="three-col" style="margin-bottom:16px">
+      <div class="kpi-card" style="border:1px solid ${hColor}">
+        <div class="label">営業健全性スコア</div>
+        <div class="health-score" style="color:${hColor}">${ov.healthScore}<span style="font-size:16px;font-weight:400">/100</span></div>
+        <div class="sub" style="color:${hColor};font-weight:600">${hLabel}</div>
+        <div class="health-bar">
+          <div class="seg" style="background:${ov.healthScore>=20?'var(--green)':'var(--bg3)'}"></div>
+          <div class="seg" style="background:${ov.healthScore>=40?'var(--green)':'var(--bg3)'}"></div>
+          <div class="seg" style="background:${ov.healthScore>=60?'var(--amber)':'var(--bg3)'}"></div>
+          <div class="seg" style="background:${ov.healthScore>=80?'var(--green)':'var(--bg3)'}"></div>
+          <div class="seg" style="background:${ov.healthScore>=95?'var(--green)':'var(--bg3)'}"></div>
+        </div>
+      </div>
+      <div class="kpi-card danger">
+        <div class="label">最重要課題</div>
+        <div class="value" style="font-size:18px;line-height:1.3">${ov.issues[0]?.title || '-'}</div>
+        <div class="sub">${ov.issues[0]?.desc?.slice(0,60) || ''}...</div>
+      </div>
+      <div class="kpi-card info">
+        <div class="label">改善効果（年間推計）</div>
+        <div class="value" style="font-size:22px">3,000万円+</div>
+        <div class="sub">全提案実施時の潜在改善額</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>現状の課題（重要度順）</h3>
+      <div class="issue-list">
+        ${ov.issues.map(i => `
+          <div class="issue-item ${i.severity<=3?'warning':''}">
+            <div class="issue-severity s${i.severity}">${i.severity}</div>
+            <div class="issue-body">
+              <div class="issue-title"><span class="tag tag-${i.category==='sales'?'blue':i.category==='retention'?'purple':i.category==='competitor'?'red':'amber'}" style="margin-right:6px">${categoryLabel[i.category]||i.category}</span>${i.title}</div>
+              <div class="issue-desc">${i.desc}</div>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>改善提案（優先度順）</h3>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:10px">
+        ${ov.proposals.map(p => `
+          <div class="proposal-card">
+            <div class="proposal-header">
+              <span class="proposal-priority" style="${priorityColor(p.priority)}">P${p.priority}</span>
+              <span class="tag tag-${p.category==='sales'?'blue':p.category==='retention'?'purple':p.category==='competitor'?'red':'amber'}">${categoryLabel[p.category]||p.category}</span>
+              <span class="proposal-title">${p.title}</span>
+            </div>
+            <div class="proposal-detail">${p.desc}</div>
+            <div class="proposal-meta">
+              <span style="color:var(--green)">効果: ${p.impact}</span>
+              <span>工数: ${effortLabel(p.effort)}</span>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>次のアクション（直近2週間〜1ヶ月）</h3>
+      <div class="scroll-table">
+        <table class="action-table">
+          <tr><th style="width:35%">アクション</th><th style="width:15%">担当</th><th style="width:15%">期限</th><th style="width:35%">KPI</th></tr>
+          ${ov.actions.map(a => `<tr><td>${a.action}</td><td>${a.responsible}</td><td>${a.timeline}</td><td>${a.kpi}</td></tr>`).join('')}
+        </table>
+      </div>
+    </div>
+
+    <div class="two-col">
+      <div class="card">
+        <h3>課題カテゴリ分布</h3>
+        <div class="chart-container small"><canvas id="chart-overview-cat"></canvas></div>
+      </div>
+      <div class="card">
+        <h3>改善提案の優先度 × 工数マトリクス</h3>
+        <div class="chart-container small"><canvas id="chart-overview-matrix"></canvas></div>
+      </div>
+    </div>
+  `;
+
+  // Charts
+  const catCounts = {};
+  for (const i of ov.issues) catCounts[categoryLabel[i.category]||i.category] = (catCounts[categoryLabel[i.category]||i.category]||0) + 1;
+  makeChart('chart-overview-cat', { type:'doughnut', data:{ labels:Object.keys(catCounts), datasets:[{data:Object.values(catCounts), backgroundColor:['#3b82f6','#8b5cf6','#f59e0b','#ef4444']}] } });
+
+  // Priority vs effort scatter
+  const effortMap = { '小':1, '低':1.5, '中':2.5, '高':4 };
+  makeChart('chart-overview-matrix', {
+    type:'bubble',
+    data:{
+      datasets: ov.proposals.map(p => ({
+        label: p.title.slice(0,12),
+        data: [{ x: effortMap[p.effort]||2, y: p.priority, r: 10 }],
+        backgroundColor: p.priority>=5 ? 'rgba(239,68,68,0.6)' : p.priority>=4 ? 'rgba(245,158,11,0.6)' : 'rgba(59,130,246,0.6)'
+      }))
+    },
+    options:{
+      scales:{
+        x:{ title:{ display:true, text:'工数', color:'#94a3b8' }, min:0, max:5, ticks:{ callback: v => ['','小','','中','','大'][v]||'' } },
+        y:{ title:{ display:true, text:'優先度', color:'#94a3b8' }, min:1, max:6 }
+      },
+      plugins:{ legend:{ display:false } }
+    }
+  });
+}
+
+// ============================================================
+// SECTION 1: EXECUTIVE SUMMARY
+// ============================================================
+function renderSummary() {
+  const s = analyzed.summary;
+  const riskDeals = [...analyzed.eigyou, ...analyzed.seiyaku].filter(d => d.riskScore >= 50).sort((a,b) => b.riskScore - a.riskScore).slice(0, 8);
+  document.getElementById('sec-summary').innerHTML = `
+    <h2 style="margin-bottom:16px">エグゼクティブサマリー</h2>
+    <div class="card-grid">
+      <div class="kpi-card info"><div class="label">新規営業案件</div><div class="value">${s.totalEigyou}</div><div class="sub">アクティブ ${s.activeEigyou} / 放棄 ${s.abandonedEigyou}</div></div>
+      <div class="kpi-card danger"><div class="label">リード放棄率</div><div class="value">${s.abandonRate}%</div><div class="sub">${s.abandonedEigyou}件がフォローなし</div></div>
+      <div class="kpi-card ${s.cancelRate > 40 ? 'danger' : 'warning'}"><div class="label">解約率</div><div class="value">${s.cancelRate}%</div><div class="sub">${s.cancelledSeiyaku}/${s.totalSeiyaku}社</div></div>
+      <div class="kpi-card success"><div class="label">契約継続中</div><div class="value">${s.activeSeiyaku}</div><div class="sub">休眠 ${s.dormantSeiyaku}社</div></div>
+      <div class="kpi-card warning"><div class="label">平均確度</div><div class="value">${s.avgProbability}%</div><div class="sub">確度50%以上: ${s.hotDeals}件</div></div>
+      <div class="kpi-card info"><div class="label">成約法人</div><div class="value">${s.totalSeiyaku}</div><div class="sub">継続 ${s.activeSeiyaku} / 解約 ${s.cancelledSeiyaku} / 休眠 ${s.dormantSeiyaku}</div></div>
+    </div>
+    ${riskDeals.length ? `<div class="card"><h3>危険信号アラート（リスクスコア上位）</h3>
+    <div class="scroll-table"><table><tr><th>案件</th><th>区分</th><th>リスクスコア</th><th>最終接触</th><th>状態</th></tr>
+    ${riskDeals.map(d => `<tr><td>${d.company}</td><td><span class="tag ${d.type==='eigyou'?'tag-blue':'tag-purple'}">${d.type==='eigyou'?'営業':'成約'}</span></td>
+    <td><span class="${d.riskScore>=70?'risk-high':d.riskScore>=40?'risk-mid':'risk-low'}">${d.riskScore}</span></td>
+    <td>${d.daysSinceLastContact < 9999 ? d.daysSinceLastContact + '日前' : '-'}</td>
+    <td><span class="tag ${statusTag(d.status)}">${statusLabel(d.status)}</span></td></tr>`).join('')}
+    </table></div></div>` : ''}
+    <div class="two-col">
+      <div class="card"><h3>成約法人 継続 vs 解約</h3><div class="chart-container small"><canvas id="chart-seiyaku-pie"></canvas></div></div>
+      <div class="card"><h3>新規営業 ステータス分布</h3><div class="chart-container small"><canvas id="chart-eigyou-pie"></canvas></div></div>
+    </div>`;
+  // Charts
+  const seiyakuStatuses = countBy(analyzed.seiyaku, d => d.status);
+  makeChart('chart-seiyaku-pie', { type:'doughnut', data:{ labels:Object.keys(seiyakuStatuses).map(statusLabel), datasets:[{data:Object.values(seiyakuStatuses), backgroundColor:Object.keys(seiyakuStatuses).map(statusColor)}] } });
+  const eigyouStatuses = countBy(analyzed.eigyou, d => d.status);
+  makeChart('chart-eigyou-pie', { type:'doughnut', data:{ labels:Object.keys(eigyouStatuses).map(statusLabel), datasets:[{data:Object.values(eigyouStatuses), backgroundColor:Object.keys(eigyouStatuses).map(statusColor)}] } });
+}
+
+// ============================================================
+// SECTION 2: LOSS / CANCELLATION ANALYSIS
+// ============================================================
+function renderLoss() {
+  const blockerCounts = {};
+  const blockerLabels = { timing:'タイミング/予算', ceo_block:'CEO/役員ブロック', cost:'ランニングコスト', existing_system:'既存システム', hr_resist:'人事部門の抵抗', security:'セキュリティ懸念', competitor:'競合', no_followup:'フォロー放棄' };
+  for (const d of analyzed.eigyou) for (const b of d.blockers) blockerCounts[b] = (blockerCounts[b]||0) + 1;
+
+  // Cancellation analysis for seiyaku
+  const cancelTypes = { competitor:0, keyperson:0, cost:0, implementation:0, low_usage:0, business_shrink:0, unknown:0 };
+  for (const d of analyzed.seiyaku.filter(d => d.status === 'cancelled')) {
+    const allText = d.comments.map(c => c.text).join(' ');
+    if (/SmartHR|スマートHR|カオナビ|Kaonavi|グローリー/i.test(allText)) cancelTypes.competitor++;
+    else if (/退職|異動.*キー|担当者.*変わ/i.test(allText)) cancelTypes.keyperson++;
+    else if (/コスト|費用|削減|予算/i.test(allText)) cancelTypes.cost++;
+    else if (/定着|難し.*店舗|展開.*困難/i.test(allText)) cancelTypes.implementation++;
+    else if (/使.*ない|利用.*低|見.*ない/i.test(allText)) cancelTypes.low_usage++;
+    else if (/閉店|縮小|減少/i.test(allText)) cancelTypes.business_shrink++;
+    else cancelTypes.unknown++;
+  }
+  // Record quality comparison
+  const active = analyzed.seiyaku.filter(d => d.status === 'active');
+  const cancelled = analyzed.seiyaku.filter(d => d.status === 'cancelled');
+  const avgActive = { comments: avg(active, d=>d.totalComments), commenters: avg(active, d=>d.uniqueCommenters.length), gap: avg(active, d=>d.maxGapDays), features: avg(active, d=>d.featuresUsed.length), avgLen: avg(active, d=>d.avgCommentLength) };
+  const avgCancelled = { comments: avg(cancelled, d=>d.totalComments), commenters: avg(cancelled, d=>d.uniqueCommenters.length), gap: avg(cancelled, d=>d.maxGapDays), features: avg(cancelled, d=>d.featuresUsed.length), avgLen: avg(cancelled, d=>d.avgCommentLength) };
+
+  document.getElementById('sec-loss').innerHTML = `
+    <h2 style="margin-bottom:16px">失注・解約要因分析 ― 失敗のサイエンス</h2>
+    <div class="two-col">
+      <div class="card"><h3>新規営業の失注要因</h3><div class="chart-container"><canvas id="chart-blockers"></canvas></div></div>
+      <div class="card"><h3>成約法人の解約要因</h3><div class="chart-container"><canvas id="chart-cancel-types"></canvas></div></div>
+    </div>
+    <div class="card"><h3>「記録されないこと」分析 ― 継続法人 vs 解約法人</h3>
+      <p style="color:var(--text2);margin-bottom:12px;font-size:13px">記録の量・質自体が解約リスクの代理指標。やり取りがあっても記録に残っていないこと＝営業姿勢の問題</p>
+      <div class="chart-container"><canvas id="chart-record-quality"></canvas></div>
+      <table style="margin-top:12px"><tr><th>指標</th><th>継続法人</th><th>解約法人</th><th>差異</th></tr>
+      <tr><td>コメント総数</td><td>${avgActive.comments.toFixed(1)}件</td><td>${avgCancelled.comments.toFixed(1)}件</td><td class="risk-high">${(avgActive.comments/Math.max(avgCancelled.comments,1)).toFixed(1)}倍差</td></tr>
+      <tr><td>管理担当者数</td><td>${avgActive.commenters.toFixed(1)}名</td><td>${avgCancelled.commenters.toFixed(1)}名</td><td class="risk-high">${(avgActive.commenters/Math.max(avgCancelled.commenters,1)).toFixed(1)}倍差</td></tr>
+      <tr><td>最大コメント間隔</td><td>${avgActive.gap.toFixed(0)}日</td><td>${avgCancelled.gap.toFixed(0)}日</td><td class="risk-high">${(avgCancelled.gap/Math.max(avgActive.gap,1)).toFixed(1)}倍差</td></tr>
+      <tr><td>利用機能数</td><td>${avgActive.features.toFixed(1)}個</td><td>${avgCancelled.features.toFixed(1)}個</td><td class="risk-mid">${(avgActive.features/Math.max(avgCancelled.features,1)).toFixed(1)}倍差</td></tr>
+      <tr><td>平均コメント文字数</td><td>${avgActive.avgLen.toFixed(0)}文字</td><td>${avgCancelled.avgLen.toFixed(0)}文字</td><td class="risk-mid">${(avgActive.avgLen/Math.max(avgCancelled.avgLen,1)).toFixed(1)}倍差</td></tr>
+      </table>
+    </div>
+    <div class="card"><h3>解約法人一覧</h3><div class="scroll-table"><table>
+    <tr><th>法人名</th><th>コメント数</th><th>担当者数</th><th>最大間隔</th><th>利用機能</th><th>競合</th></tr>
+    ${cancelled.map(d => `<tr><td>${d.company}</td><td>${d.totalComments}</td><td>${d.uniqueCommenters.length}</td>
+    <td>${d.maxGapDays}日</td><td>${d.featuresUsed.join(', ')||'-'}</td><td>${d.competitors.join(', ')||'-'}</td></tr>`).join('')}
+    </table></div></div>`;
+
+  // Charts
+  const bKeys = Object.keys(blockerCounts).sort((a,b)=>blockerCounts[b]-blockerCounts[a]);
+  makeChart('chart-blockers', { type:'bar', data:{ labels:bKeys.map(k=>blockerLabels[k]||k), datasets:[{label:'件数',data:bKeys.map(k=>blockerCounts[k]),backgroundColor:'#3b82f6'}] }, options:{indexAxis:'y',scales:{x:{beginAtZero:true},y:{}}} });
+  const ctLabels = { competitor:'競合乗り換え', keyperson:'キーパーソン退職', cost:'コスト削減', implementation:'導入難度', low_usage:'低利用', business_shrink:'事業縮小', unknown:'原因不明/記録なし' };
+  const ctColors = { competitor:'#ef4444', keyperson:'#f59e0b', cost:'#8b5cf6', implementation:'#06b6d4', low_usage:'#f97316', business_shrink:'#6b7280', unknown:'#475569' };
+  makeChart('chart-cancel-types', { type:'doughnut', data:{ labels:Object.keys(cancelTypes).map(k=>ctLabels[k]), datasets:[{data:Object.values(cancelTypes),backgroundColor:Object.keys(cancelTypes).map(k=>ctColors[k])}] } });
+  makeChart('chart-record-quality', { type:'bar', data:{ labels:['コメント数','担当者数','利用機能数'], datasets:[{label:'継続法人',data:[avgActive.comments,avgActive.commenters,avgActive.features],backgroundColor:'#10b981'},{label:'解約法人',data:[avgCancelled.comments,avgCancelled.commenters,avgCancelled.features],backgroundColor:'#ef4444'}] }, options:{scales:{x:{},y:{beginAtZero:true}}} });
+}
+
+// ============================================================
+// SECTION 3: SALES APPROACH ANALYSIS
+// ============================================================
+function renderApproach() {
+  // Role analysis
+  const roleCounts = {};
+  const roleProbs = {};
+  for (const d of analyzed.eigyou) {
+    for (const c of d.comments) {
+      for (const r of c.extracted.roles) {
+        roleCounts[r] = (roleCounts[r]||0) + 1;
+        if (!roleProbs[r]) roleProbs[r] = [];
+        if (d.currentProb !== null) roleProbs[r].push(d.currentProb);
+      }
+    }
+  }
+  // Meeting type analysis
+  const mtCounts = { zoom:0, face:0, phone:0, mail:0 };
+  const mtProbs = { zoom:[], face:[], phone:[], mail:[] };
+  for (const d of analyzed.eigyou) {
+    for (const mt of Object.keys(mtCounts)) {
+      if (d.meetingTypes[mt] > 0) {
+        mtCounts[mt] += d.meetingTypes[mt];
+        if (d.currentProb !== null) mtProbs[mt].push(d.currentProb);
+      }
+    }
+  }
+  // Referral analysis
+  const refDeals = analyzed.eigyou.filter(d => d.comments.some(c => c.extracted.isReferral));
+  const coldDeals = analyzed.eigyou.filter(d => d.totalComments > 0 && !d.comments.some(c => c.extracted.isReferral));
+  const refAvg = avg(refDeals.filter(d=>d.currentProb!==null), d=>d.currentProb);
+  const coldAvg = avg(coldDeals.filter(d=>d.currentProb!==null), d=>d.currentProb);
+
+  const mtLabels = { zoom:'ZOOM', face:'対面', phone:'電話', mail:'メール/LINE' };
+  document.getElementById('sec-approach').innerHTML = `
+    <h2 style="margin-bottom:16px">営業アプローチ分析</h2>
+    <div class="two-col">
+      <div class="card"><h3>接触役職 × 案件数・平均確度</h3><div class="chart-container"><canvas id="chart-roles"></canvas></div></div>
+      <div class="card"><h3>商談方法の効果比較</h3><div class="chart-container"><canvas id="chart-meeting"></canvas></div></div>
+    </div>
+    <div class="card"><h3>紹介 vs コールドアプローチ</h3>
+      <div class="card-grid">
+        <div class="kpi-card success"><div class="label">紹介経由</div><div class="value">${refDeals.length}件</div><div class="sub">平均確度 ${refAvg.toFixed(1)}%</div></div>
+        <div class="kpi-card warning"><div class="label">コールド</div><div class="value">${coldDeals.length}件</div><div class="sub">平均確度 ${coldAvg.toFixed(1)}%</div></div>
+        <div class="kpi-card info"><div class="label">確度差</div><div class="value">+${(refAvg-coldAvg).toFixed(1)}%</div><div class="sub">紹介の優位性</div></div>
+      </div>
+    </div>`;
+  // Charts
+  const rKeys = Object.keys(roleCounts).sort((a,b)=>roleCounts[b]-roleCounts[a]).slice(0,10);
+  makeChart('chart-roles', { type:'bar', data:{ labels:rKeys, datasets:[
+    {label:'接触回数',data:rKeys.map(k=>roleCounts[k]),backgroundColor:'#3b82f6',yAxisID:'y'},
+    {label:'平均確度(%)',data:rKeys.map(k=>roleProbs[k]?.length?Math.round(roleProbs[k].reduce((s,v)=>s+v,0)/roleProbs[k].length):0),backgroundColor:'#10b981',yAxisID:'y1'}
+  ]}, options:{scales:{y:{beginAtZero:true,position:'left'},y1:{beginAtZero:true,max:100,position:'right',grid:{drawOnChartArea:false}}}} });
+  const mtKeys = ['face','zoom','phone','mail'];
+  makeChart('chart-meeting', { type:'bar', data:{ labels:mtKeys.map(k=>mtLabels[k]), datasets:[
+    {label:'回数',data:mtKeys.map(k=>mtCounts[k]),backgroundColor:'#3b82f6',yAxisID:'y'},
+    {label:'平均確度(%)',data:mtKeys.map(k=>mtProbs[k].length?Math.round(mtProbs[k].reduce((s,v)=>s+v,0)/mtProbs[k].length):0),backgroundColor:'#10b981',yAxisID:'y1'}
+  ]}, options:{scales:{y:{beginAtZero:true,position:'left'},y1:{beginAtZero:true,max:100,position:'right',grid:{drawOnChartArea:false}}}} });
+}
+
+// ============================================================
+// SECTION 4: SALESPERSON PERFORMANCE
+// ============================================================
+function renderSalesperson() {
+  const sps = Object.values(analyzed.salespersons).filter(sp => sp.comments.length >= 3).sort((a,b) => b.comments.length - a.comments.length);
+  // Team vs individual analysis
+  const teamManaged = analyzed.seiyaku.filter(d => d.uniqueCommenters.length >= 3);
+  const soloManaged = analyzed.seiyaku.filter(d => d.uniqueCommenters.length > 0 && d.uniqueCommenters.length < 3);
+  const teamActive = teamManaged.filter(d => d.status === 'active').length;
+  const soloActive = soloManaged.filter(d => d.status === 'active').length;
+
+  document.getElementById('sec-salesperson').innerHTML = `
+    <h2 style="margin-bottom:16px">営業担当者パフォーマンス & ヒューマンスキル分析</h2>
+    <div class="card"><h3>チーム管理 vs 個人依存（成約法人の継続率）</h3>
+      <div class="card-grid">
+        <div class="kpi-card success"><div class="label">チーム管理型（3名以上）</div><div class="value">${teamManaged.length?Math.round(teamActive/teamManaged.length*100):0}%</div><div class="sub">${teamActive}/${teamManaged.length}社が継続</div></div>
+        <div class="kpi-card danger"><div class="label">個人依存型（1-2名）</div><div class="value">${soloManaged.length?Math.round(soloActive/soloManaged.length*100):0}%</div><div class="sub">${soloActive}/${soloManaged.length}社が継続</div></div>
+      </div>
+    </div>
+    <div class="card"><h3>担当者パフォーマンス一覧</h3><div class="scroll-table"><table>
+    <tr><th>担当者</th><th>コメント</th><th>営業案件</th><th>成約担当</th><th>記録詳細度</th><th>粘り強さ</th><th>提案力</th><th>傾聴力</th><th>計画性</th><th>危機察知</th></tr>
+    ${sps.map(sp => `<tr><td><strong>${sp.name}</strong></td><td>${sp.comments.length}</td>
+    <td>${new Set(sp.eigyou).size}</td><td>${new Set(sp.seiyaku).size}</td>
+    <td>${scoreBar(sp.scores.diligence)}</td><td>${scoreBar(sp.scores.persistence)}</td>
+    <td>${scoreBar(sp.scores.proactiveness)}</td><td>${scoreBar(sp.scores.empathy)}</td>
+    <td>${scoreBar(sp.scores.planning)}</td><td>${scoreBar(sp.scores.riskAwareness)}</td></tr>`).join('')}
+    </table></div></div>
+    <div class="radar-grid">
+    ${sps.slice(0,4).map((sp,i) => `<div class="card"><h3>${sp.name}</h3><div class="chart-container small"><canvas id="chart-radar-${i}"></canvas></div></div>`).join('')}
+    </div>`;
+  // Radar charts
+  const radarLabels = ['記録詳細度','粘り強さ','提案力','傾聴力','計画性','危機察知'];
+  sps.slice(0,4).forEach((sp,i) => {
+    makeChart(`chart-radar-${i}`, { type:'radar', data:{ labels:radarLabels, datasets:[{label:sp.name,data:[sp.scores.diligence,sp.scores.persistence,sp.scores.proactiveness,sp.scores.empathy,sp.scores.planning,sp.scores.riskAwareness],backgroundColor:'rgba(59,130,246,.2)',borderColor:'#3b82f6',pointBackgroundColor:'#3b82f6'}] }, options:{scales:{r:{min:0,max:100,ticks:{stepSize:20,color:'#94a3b8'},grid:{color:'rgba(51,65,85,.5)'},angleLines:{color:'rgba(51,65,85,.5)'},pointLabels:{color:'#e2e8f0',font:{size:11}}}}} });
+  });
+}
+
+// ============================================================
+// SECTION 5: PROBABILITY TRACKING
+// ============================================================
+function renderProbability() {
+  const dealsWithProb = analyzed.eigyou.filter(d => d.probHistory.length > 0).sort((a,b) => (b.currentProb||0) - (a.currentProb||0));
+  const probDist = { '0-10':0, '11-20':0, '21-30':0, '31-40':0, '41-50':0, '51-60':0, '61-70':0, '71-80':0, '81-90':0, '91-100':0 };
+  for (const d of dealsWithProb) { const p = d.currentProb; const k = Object.keys(probDist).find(k => { const [lo,hi] = k.split('-').map(Number); return p >= lo && p <= hi; }); if (k) probDist[k]++; }
+  const decreasedDeals = dealsWithProb.filter(d => d.probTrend < 0).sort((a,b) => a.probTrend - b.probTrend);
+
+  document.getElementById('sec-probability').innerHTML = `
+    <h2 style="margin-bottom:16px">確度トラッキング</h2>
+    <div class="two-col">
+      <div class="card"><h3>現在の確度分布</h3><div class="chart-container"><canvas id="chart-prob-dist"></canvas></div></div>
+      <div class="card"><h3>確度下降案件（要注意）</h3><div class="scroll-table"><table>
+      <tr><th>法人名</th><th>現在確度</th><th>変動</th><th>主要因</th></tr>
+      ${decreasedDeals.slice(0,15).map(d => `<tr><td>${d.company}</td><td>${d.currentProb}%</td>
+      <td class="risk-high">${d.probTrend}%</td><td>${d.blockers.map(b=>blockerLabel(b)).join(', ')||'-'}</td></tr>`).join('')}
+      </table></div></div>
+    </div>
+    <div class="card"><h3>全案件の確度一覧</h3><div class="scroll-table"><table>
+    <tr><th>法人名</th><th>確度</th><th>トレンド</th><th>最終接触</th><th>担当</th><th>ステータス</th></tr>
+    ${dealsWithProb.map(d => `<tr><td>${d.company}</td><td>${d.currentProb}%</td>
+    <td class="${d.probTrend>0?'risk-low':d.probTrend<0?'risk-high':''}">${d.probTrend>0?'+':''}${d.probTrend}%</td>
+    <td>${d.daysSinceLastContact<9999?d.daysSinceLastContact+'日前':'-'}</td>
+    <td>${d.primarySalesperson}</td><td><span class="tag ${statusTag(d.status)}">${statusLabel(d.status)}</span></td></tr>`).join('')}
+    </table></div></div>`;
+  makeChart('chart-prob-dist', { type:'bar', data:{ labels:Object.keys(probDist), datasets:[{label:'案件数',data:Object.values(probDist),backgroundColor:Object.keys(probDist).map((_,i)=>`hsl(${120-i*12},70%,50%)`)}] }, options:{scales:{x:{},y:{beginAtZero:true}}} });
+}
+
+// ============================================================
+// SECTION 6: PRICING
+// ============================================================
+function renderPricing() {
+  const withPricing = analyzed.eigyou.filter(d => d.pricing.unitPrice.length > 0);
+  const priceData = withPricing.map(d => ({ company: d.company, unitPrice: d.pricing.unitPrice, prob: d.currentProb, stores: d.storeCount }));
+  document.getElementById('sec-pricing').innerHTML = `
+    <h2 style="margin-bottom:16px">価格・見積分析</h2>
+    <div class="card"><h3>提示単価と確度の関係</h3><div class="chart-container"><canvas id="chart-price-scatter"></canvas></div></div>
+    <div class="card"><h3>価格提示一覧</h3><div class="scroll-table"><table>
+    <tr><th>法人名</th><th>店舗数</th><th>提示単価(円)</th><th>確度</th></tr>
+    ${priceData.map(d => `<tr><td>${d.company}</td><td>${d.stores||'-'}</td>
+    <td>${d.unitPrice.map(p=>p.toLocaleString()).join(', ')}</td><td>${d.prob!==null?d.prob+'%':'-'}</td></tr>`).join('')}
+    </table></div></div>`;
+  const scatterData = priceData.filter(d => d.prob !== null).map(d => ({ x: Math.max(...d.unitPrice), y: d.prob }));
+  makeChart('chart-price-scatter', { type:'scatter', data:{ datasets:[{label:'単価 vs 確度',data:scatterData,backgroundColor:'#3b82f6',pointRadius:6}] }, options:{scales:{x:{title:{display:true,text:'提示単価(円)',color:'#94a3b8'}},y:{title:{display:true,text:'確度(%)',color:'#94a3b8'},beginAtZero:true,max:100}}} });
+}
+
+// ============================================================
+// SECTION 7: TIMELINE
+// ============================================================
+function renderTimeline() {
+  // Monthly activity
+  const monthly = {};
+  for (const d of [...analyzed.eigyou, ...analyzed.seiyaku]) {
+    for (const c of d.comments) {
+      const m = c.date.slice(0, 7);
+      if (!monthly[m]) monthly[m] = { eigyou: 0, seiyaku: 0 };
+      monthly[m][d.type]++;
+    }
+  }
+  const months = Object.keys(monthly).sort();
+  document.getElementById('sec-timeline').innerHTML = `
+    <h2 style="margin-bottom:16px">タイムライン分析</h2>
+    <div class="card"><h3>月別活動推移</h3><div class="chart-container tall"><canvas id="chart-timeline"></canvas></div></div>
+    <div class="card"><h3>長期化案件（初回接触から180日以上）</h3><div class="scroll-table"><table>
+    <tr><th>法人名</th><th>初回接触</th><th>最終接触</th><th>経過日数</th><th>確度</th><th>担当</th></tr>
+    ${analyzed.eigyou.filter(d => d.firstDate && d.lastDate && (new Date(d.lastDate)-new Date(d.firstDate))/86400000 > 180)
+      .sort((a,b) => (new Date(b.lastDate)-new Date(b.firstDate)) - (new Date(a.lastDate)-new Date(a.firstDate)))
+      .map(d => `<tr><td>${d.company}</td><td>${d.firstDate?.slice(0,10)}</td><td>${d.lastDate?.slice(0,10)}</td>
+      <td>${Math.round((new Date(d.lastDate)-new Date(d.firstDate))/86400000)}日</td>
+      <td>${d.currentProb!==null?d.currentProb+'%':'-'}</td><td>${d.primarySalesperson}</td></tr>`).join('')}
+    </table></div></div>`;
+  makeChart('chart-timeline', { type:'line', data:{ labels:months, datasets:[
+    {label:'新規営業',data:months.map(m=>monthly[m]?.eigyou||0),borderColor:'#3b82f6',backgroundColor:'rgba(59,130,246,.1)',fill:true,tension:.3},
+    {label:'成約法人',data:months.map(m=>monthly[m]?.seiyaku||0),borderColor:'#10b981',backgroundColor:'rgba(16,185,129,.1)',fill:true,tension:.3}
+  ]}, options:{scales:{x:{},y:{beginAtZero:true}}} });
+}
+
+// ============================================================
+// SECTION 8: REGIONAL
+// ============================================================
+function renderRegional() {
+  const locCounts = {};
+  const locProbs = {};
+  for (const d of analyzed.eigyou) {
+    for (const loc of d.locations) {
+      locCounts[loc] = (locCounts[loc]||0) + 1;
+      if (d.currentProb !== null) { if (!locProbs[loc]) locProbs[loc] = []; locProbs[loc].push(d.currentProb); }
+    }
+  }
+  // Store size analysis
+  const sizeGroups = { '1-5': { count:0, probs:[] }, '6-10': { count:0, probs:[] }, '11-20': { count:0, probs:[] }, '21-50': { count:0, probs:[] }, '50+': { count:0, probs:[] } };
+  for (const d of analyzed.eigyou) {
+    if (d.storeCount) {
+      const key = d.storeCount <= 5 ? '1-5' : d.storeCount <= 10 ? '6-10' : d.storeCount <= 20 ? '11-20' : d.storeCount <= 50 ? '21-50' : '50+';
+      sizeGroups[key].count++;
+      if (d.currentProb !== null) sizeGroups[key].probs.push(d.currentProb);
+    }
+  }
+  const lKeys = Object.keys(locCounts).sort((a,b) => locCounts[b] - locCounts[a]).slice(0, 15);
+  document.getElementById('sec-regional').innerHTML = `
+    <h2 style="margin-bottom:16px">地域・規模分析</h2>
+    <div class="two-col">
+      <div class="card"><h3>地域別案件数</h3><div class="chart-container"><canvas id="chart-regional"></canvas></div></div>
+      <div class="card"><h3>店舗規模別</h3><div class="chart-container"><canvas id="chart-store-size"></canvas></div></div>
+    </div>`;
+  makeChart('chart-regional', { type:'bar', data:{ labels:lKeys, datasets:[{label:'案件数',data:lKeys.map(k=>locCounts[k]),backgroundColor:'#3b82f6'}] }, options:{indexAxis:'y',scales:{x:{beginAtZero:true},y:{}}} });
+  const sgKeys = Object.keys(sizeGroups);
+  makeChart('chart-store-size', { type:'bar', data:{ labels:sgKeys.map(k=>k+'店舗'), datasets:[
+    {label:'案件数',data:sgKeys.map(k=>sizeGroups[k].count),backgroundColor:'#3b82f6',yAxisID:'y'},
+    {label:'平均確度(%)',data:sgKeys.map(k=>sizeGroups[k].probs.length?Math.round(sizeGroups[k].probs.reduce((s,v)=>s+v,0)/sizeGroups[k].probs.length):0),backgroundColor:'#10b981',yAxisID:'y1'}
+  ]}, options:{scales:{y:{beginAtZero:true,position:'left'},y1:{beginAtZero:true,max:100,position:'right',grid:{drawOnChartArea:false}}}} });
+}
+
+// ============================================================
+// SECTION 9: RISK DETECTION
+// ============================================================
+function renderRisk() {
+  const allDeals = [...analyzed.eigyou, ...analyzed.seiyaku].filter(d => d.riskScore > 0).sort((a,b) => b.riskScore - a.riskScore);
+  document.getElementById('sec-risk').innerHTML = `
+    <h2 style="margin-bottom:16px">リスク検知ダッシュボード</h2>
+    <div class="card-grid">
+      <div class="kpi-card danger"><div class="label">高リスク案件</div><div class="value">${allDeals.filter(d=>d.riskScore>=70).length}</div><div class="sub">スコア70以上</div></div>
+      <div class="kpi-card warning"><div class="label">要注意案件</div><div class="value">${allDeals.filter(d=>d.riskScore>=40&&d.riskScore<70).length}</div><div class="sub">スコア40-69</div></div>
+      <div class="kpi-card success"><div class="label">低リスク</div><div class="value">${allDeals.filter(d=>d.riskScore>0&&d.riskScore<40).length}</div><div class="sub">スコア40未満</div></div>
+    </div>
+    <div class="card"><h3>リスクスコア一覧</h3><div class="scroll-table"><table>
+    <tr><th>法人名</th><th>区分</th><th>スコア</th><th>最終接触</th><th>コメント</th><th>担当者数</th><th>要因</th><th>ステータス</th></tr>
+    ${allDeals.slice(0,50).map(d => `<tr>
+    <td>${d.company}</td><td><span class="tag ${d.type==='eigyou'?'tag-blue':'tag-purple'}">${d.type==='eigyou'?'営業':'成約'}</span></td>
+    <td><strong class="${d.riskScore>=70?'risk-high':d.riskScore>=40?'risk-mid':'risk-low'}">${d.riskScore}</strong></td>
+    <td>${d.daysSinceLastContact<9999?d.daysSinceLastContact+'日前':'-'}</td>
+    <td>${d.totalComments}</td><td>${d.uniqueCommenters.length}</td>
+    <td>${d.blockers.map(b=>blockerLabel(b)).join(', ')||'-'}</td>
+    <td><span class="tag ${statusTag(d.status)}">${statusLabel(d.status)}</span></td></tr>`).join('')}
+    </table></div></div>`;
+}
+
+// ============================================================
+// SECTION 10: CONTRACT MONITORING
+// ============================================================
+function renderContract() {
+  const active = analyzed.seiyaku.filter(d => d.status === 'active').sort((a,b) => b.totalComments - a.totalComments);
+  const cancelled = analyzed.seiyaku.filter(d => d.status === 'cancelled').sort((a,b) => new Date(b.lastDate||0) - new Date(a.lastDate||0));
+  const dormant = analyzed.seiyaku.filter(d => d.status === 'dormant');
+
+  document.getElementById('sec-contract').innerHTML = `
+    <h2 style="margin-bottom:16px">成約法人モニタリング ― 継続 vs 解約の構造分析</h2>
+    <div class="card"><h3>継続法人の成功パターン</h3>
+    <div class="scroll-table"><table>
+    <tr><th>法人名</th><th>コメント</th><th>担当者</th><th>最大間隔</th><th>利用機能</th><th>カスタム</th><th>記録品質</th></tr>
+    ${active.map(d => `<tr><td><strong>${d.company}</strong></td><td>${d.totalComments}</td>
+    <td>${d.uniqueCommenters.join(', ')}</td><td>${d.maxGapDays}日</td>
+    <td>${d.featuresUsed.join(', ')||'-'}</td><td>${d.hasCustomRequest?'<span class="tag tag-green">有</span>':'<span class="tag tag-red">無</span>'}</td>
+    <td>${recordQualityBar(d)}</td></tr>`).join('')}
+    </table></div></div>
+    <div class="card"><h3>解約法人の失敗パターン</h3>
+    <div class="scroll-table"><table>
+    <tr><th>法人名</th><th>コメント</th><th>担当者</th><th>最大間隔</th><th>利用機能</th><th>競合</th><th>記録品質</th></tr>
+    ${cancelled.map(d => `<tr><td>${d.company}</td><td>${d.totalComments}</td>
+    <td>${d.uniqueCommenters.join(', ')}</td><td>${d.maxGapDays}日</td>
+    <td>${d.featuresUsed.join(', ')||'-'}</td><td>${d.competitors.join(', ')||'-'}</td>
+    <td>${recordQualityBar(d)}</td></tr>`).join('')}
+    </table></div></div>
+    ${dormant.length ? `<div class="card"><h3>休眠法人（365日以上接触なし）</h3>
+    <div class="scroll-table"><table>
+    <tr><th>法人名</th><th>最終接触</th><th>経過日数</th><th>コメント</th></tr>
+    ${dormant.map(d => `<tr><td>${d.company}</td><td>${d.lastDate?.slice(0,10)||'-'}</td>
+    <td class="risk-high">${d.daysSinceLastContact}日</td><td>${d.totalComments}</td></tr>`).join('')}
+    </table></div></div>` : ''}`;
+}
+
+// ============================================================
+// SECTION 11: COMPETITOR ANALYSIS
+// ============================================================
+function renderCompetitor() {
+  const compMentions = {};
+  const compDeals = {};
+  for (const d of [...analyzed.eigyou, ...analyzed.seiyaku]) {
+    for (const comp of d.competitors) {
+      const normalized = normalizeCompetitor(comp);
+      compMentions[normalized] = (compMentions[normalized]||0) + 1;
+      if (!compDeals[normalized]) compDeals[normalized] = [];
+      compDeals[normalized].push({ company: d.company, type: d.type, status: d.status, prob: d.currentProb });
+    }
+  }
+  // Timeline of competitor mentions
+  const compTimeline = {};
+  for (const d of [...analyzed.eigyou, ...analyzed.seiyaku]) {
+    for (const c of d.comments) {
+      const month = c.date.slice(0, 7);
+      for (const comp of c.extracted.competitors) {
+        const n = normalizeCompetitor(comp);
+        if (!compTimeline[n]) compTimeline[n] = {};
+        compTimeline[n][month] = (compTimeline[n][month]||0) + 1;
+      }
+    }
+  }
+  const cKeys = Object.keys(compMentions).sort((a,b) => compMentions[b] - compMentions[a]);
+
+  document.getElementById('sec-competitor').innerHTML = `
+    <h2 style="margin-bottom:16px">競合分析ダッシュボード</h2>
+    <div class="two-col">
+      <div class="card"><h3>競合製品 言及回数</h3><div class="chart-container"><canvas id="chart-competitor"></canvas></div></div>
+      <div class="card"><h3>競合言及の時系列推移</h3><div class="chart-container"><canvas id="chart-comp-timeline"></canvas></div></div>
+    </div>
+    <div class="card"><h3>競合関連案件一覧</h3><div class="scroll-table"><table>
+    <tr><th>競合</th><th>法人名</th><th>区分</th><th>結果</th></tr>
+    ${cKeys.flatMap(k => compDeals[k].map(d => `<tr><td><span class="tag tag-red">${k}</span></td><td>${d.company}</td>
+    <td><span class="tag ${d.type==='eigyou'?'tag-blue':'tag-purple'}">${d.type==='eigyou'?'営業':'成約'}</span></td>
+    <td><span class="tag ${statusTag(d.status)}">${statusLabel(d.status)}</span></td></tr>`)).join('')}
+    </table></div></div>`;
+
+  makeChart('chart-competitor', { type:'bar', data:{ labels:cKeys, datasets:[{label:'言及回数',data:cKeys.map(k=>compMentions[k]),backgroundColor:'#ef4444'}] }, options:{indexAxis:'y',scales:{x:{beginAtZero:true},y:{}}} });
+  // Timeline chart
+  const allMonths = [...new Set(Object.values(compTimeline).flatMap(v => Object.keys(v)))].sort();
+  const colors = ['#ef4444','#f59e0b','#3b82f6','#10b981','#8b5cf6','#06b6d4','#f97316'];
+  if (cKeys.length && allMonths.length) {
+    makeChart('chart-comp-timeline', { type:'line', data:{ labels:allMonths, datasets:cKeys.slice(0,5).map((k,i) => ({
+      label:k, data:allMonths.map(m=>compTimeline[k]?.[m]||0), borderColor:colors[i%colors.length], tension:.3, fill:false
+    })) }, options:{scales:{x:{},y:{beginAtZero:true}}} });
+  }
+}
+
+// ============================================================
+// UTILITY FUNCTIONS
+// ============================================================
+function countBy(arr, fn) { const r = {}; arr.forEach(v => { const k = fn(v); r[k] = (r[k]||0)+1; }); return r; }
+function avg(arr, fn) { return arr.length ? arr.reduce((s,v) => s + fn(v), 0) / arr.length : 0; }
+function statusLabel(s) { return {active:'継続中',cancelled:'解約',dormant:'休眠',abandoned:'放棄',lost:'失注',hot:'高確度',stalled:'停滞'}[s]||s; }
+function statusColor(s) { return {active:'#10b981',cancelled:'#ef4444',dormant:'#6b7280',abandoned:'#475569',lost:'#dc2626',hot:'#f59e0b',stalled:'#f97316'}[s]||'#64748b'; }
+function statusTag(s) { return {active:'tag-green',cancelled:'tag-red',dormant:'tag-amber',abandoned:'tag-red',lost:'tag-red',hot:'tag-amber',stalled:'tag-amber'}[s]||''; }
+function blockerLabel(b) { return {timing:'タイミング',ceo_block:'CEO阻害',cost:'コスト',existing_system:'既存システム',hr_resist:'人事抵抗',security:'セキュリティ',competitor:'競合',no_followup:'放棄'}[b]||b; }
+function scoreBar(val) {
+  const color = val >= 70 ? 'var(--green)' : val >= 40 ? 'var(--amber)' : 'var(--red)';
+  return `<div style="display:flex;align-items:center;gap:6px"><span style="width:28px;text-align:right;font-size:12px">${val}</span><div class="progress-bar" style="flex:1"><div class="fill" style="width:${val}%;background:${color}"></div></div></div>`;
+}
+function recordQualityBar(d) {
+  const score = Math.min(100, Math.round((d.totalComments / 30 * 25) + (d.uniqueCommenters.length / 3 * 25) + (d.featuresUsed.length / 5 * 25) + (Math.max(0, 100 - d.maxGapDays) / 100 * 25)));
+  return scoreBar(score);
+}
+function closeModal() { document.getElementById('modal').classList.remove('show'); }
+
+// ============================================================
+// EXPORT FUNCTIONS
+// ============================================================
+function exportHTML() {
+  if (!rawData) return alert('データが読み込まれていません');
+  // Clone the full HTML source but inject data + auto-init script
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(document.documentElement.outerHTML, 'text/html');
+  // Remove upload screen, show dashboard
+  const up = doc.getElementById('upload-screen');
+  if (up) up.style.display = 'none';
+  const db = doc.getElementById('dashboard');
+  if (db) db.style.display = 'block';
+  const tb = doc.getElementById('toolbar');
+  if (tb) tb.style.display = 'flex';
+  // Clear all canvas elements (they won't transfer) so Chart.js can re-render
+  doc.querySelectorAll('canvas').forEach(c => {
+    const parent = c.parentNode;
+    const newCanvas = doc.createElement('canvas');
+    newCanvas.id = c.id;
+    parent.replaceChild(newCanvas, c);
+  });
+  // Clear rendered section content (will be re-rendered by init script)
+  doc.querySelectorAll('.section').forEach(s => { s.innerHTML = ''; });
+  // Re-activate overview section
+  doc.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  const overviewSec = doc.getElementById('sec-overview');
+  if (overviewSec) overviewSec.classList.add('active');
+  doc.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  const overviewNav = doc.querySelector('.nav-item[data-section="overview"]');
+  if (overviewNav) overviewNav.classList.add('active');
+  // Inject embedded data + auto-init script before </body>
+  const initScript = doc.createElement('script');
+  initScript.textContent = `
+    // Embedded data for standalone operation
+    var _embeddedData = ${JSON.stringify(rawData)};
+    window.addEventListener('DOMContentLoaded', function() {
+      rawData = _embeddedData;
+      analyzed = analyzeData(rawData);
+      document.getElementById('upload-screen').style.display = 'none';
+      document.getElementById('dashboard').style.display = 'block';
+      document.getElementById('toolbar').style.display = 'flex';
+      document.getElementById('data-info').textContent = 'エクスポート済みデータ';
+      renderAll();
+    });
+  `;
+  doc.body.appendChild(initScript);
+  // Export
+  const blob = new Blob(['<!DOCTYPE html>\n' + doc.documentElement.outerHTML], { type: 'text/html' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `pm-analysis-${new Date().toISOString().slice(0,10)}.html`;
+  a.click();
+}
+function exportJSON() {
+  if (!analyzed) return;
+  const blob = new Blob([JSON.stringify(analyzed, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `pm-analysis-${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+}
+</script>
+</body>
+</html>
