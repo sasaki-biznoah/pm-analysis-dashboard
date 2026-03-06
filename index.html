@@ -1241,6 +1241,22 @@ function exportJSON() {
   a.download = `pm-analysis-${new Date().toISOString().slice(0,10)}.json`;
   a.click();
 }
+// Auto-load JSON data from same directory (for GitHub Pages deployment)
+window.addEventListener('DOMContentLoaded', function() {
+  if (typeof _embeddedData !== 'undefined') return; // Skip if exported HTML with embedded data
+  fetch('redmine_comments_export.json')
+    .then(r => { if (!r.ok) throw new Error('not found'); return r.json(); })
+    .then(data => {
+      rawData = data;
+      analyzed = analyzeData(data);
+      document.getElementById('upload-screen').style.display = 'none';
+      document.getElementById('dashboard').style.display = 'block';
+      document.getElementById('toolbar').style.display = 'flex';
+      document.getElementById('data-info').textContent = data.issues ? data.issues.length + ' issues loaded' : 'データ読み込み完了';
+      renderAll();
+    })
+    .catch(() => {}); // JSON not found = show upload screen as normal
+});
 </script>
 </body>
 </html>
