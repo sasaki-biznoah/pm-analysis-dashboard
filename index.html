@@ -1230,7 +1230,7 @@ function exportHTML() {
   const blob = new Blob(['<!DOCTYPE html>\n' + doc.documentElement.outerHTML], { type: 'text/html' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = `pm-analysis-${new Date().toISOString().slice(0,10)}.html`;
+  a.download = `pm-analysis-${new Date().toISOString().slice(0,10)}.htm`;
   a.click();
 }
 function exportJSON() {
