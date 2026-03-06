@@ -1252,7 +1252,7 @@ window.addEventListener('DOMContentLoaded', function() {
       document.getElementById('upload-screen').style.display = 'none';
       document.getElementById('dashboard').style.display = 'block';
       document.getElementById('toolbar').style.display = 'flex';
-      document.getElementById('data-info').textContent = data.issues ? data.issues.length + ' issues loaded' : 'データ読み込み完了';
+      document.getElementById('data-info').textContent = 'データ読み込み完了';
       renderAll();
     })
     .catch(() => {}); // JSON not found = show upload screen as normal
